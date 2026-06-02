@@ -1,7 +1,7 @@
 """The Remootio integration."""
 from __future__ import annotations
 import logging
-from aioremootio import ConnectionOptions, RemootioClient
+from typing import TYPE_CHECKING
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
@@ -14,11 +14,17 @@ from .const import (
 )
 from .utils import create_client
 
+if TYPE_CHECKING:
+    from aioremootio import ConnectionOptions, RemootioClient
+
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.COVER]
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Remootio from a config entry."""
+    from aioremootio import ConnectionOptions  # noqa: PLC0415
+
     _LOGGER.debug("Doing async_setup_entry. entry [%s]", entry.as_dict())
     connection_options: ConnectionOptions = ConnectionOptions(
         entry.data[CONF_HOST],
@@ -26,13 +32,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data[CONF_API_AUTH_KEY],
     )
     serial_number: str = entry.data[CONF_SERIAL_NUMBER]
-    remootio_client: RemootioClient = await create_client(
+    remootio_client = await create_client(
         hass, connection_options, _LOGGER, serial_number
     )
     hass_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
     hass_data[REMOOTIO_CLIENT] = remootio_client
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
@@ -46,15 +53,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     platforms_unloaded = await hass.config_entries.async_unload_platforms(
         entry, PLATFORMS
     )
-    if platforms_unloaded and DOMAIN in hass.data.keys():
+    if platforms_unloaded and DOMAIN in hass.data:
         hass_data = hass.data[DOMAIN].pop(entry.entry_id, {})
-        if REMOOTIO_CLIENT in hass_data:
-            remootio_client: RemootioClient = hass_data.pop(REMOOTIO_CLIENT, None)
-            if remootio_client is not None:
-                terminated: bool = await remootio_client.terminate()
-                if terminated:
-                    _LOGGER.debug(
-                        "Remootio client successfully terminated. entry [%s]",
-                        entry.as_dict(),
-                    )
+        remootio_client = hass_data.pop(REMOOTIO_CLIENT, None)
+        if remootio_client is not None:
+            terminated: bool = await remootio_client.terminate()
+            if terminated:
+                _LOGGER.debug(
+                    "Remootio client successfully terminated. entry [%s]",
+                    entry.as_dict(),
+                )
     return platforms_unloaded
