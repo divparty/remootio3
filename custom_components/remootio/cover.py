@@ -1,10 +1,7 @@
 """Support for by a Remootio device controlled garage door or gate."""
 from __future__ import annotations
-
 import logging
-
 from aioremootio import Event, EventType, Listener, RemootioClient, State, StateChange
-
 from homeassistant.components import cover
 from homeassistant.components.cover import CoverEntity, CoverEntityFeature, CoverDeviceClass
 from homeassistant.config_entries import ConfigEntry
@@ -12,11 +9,9 @@ from homeassistant.const import ATTR_ENTITY_ID, ATTR_NAME, CONF_DEVICE_CLASS
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
 from .const import ATTR_SERIAL_NUMBER, CONF_SERIAL_NUMBER, DOMAIN, REMOOTIO_CLIENT
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -24,7 +19,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an RemootioCover entity based on the given configuration entry."""
-
     _LOGGER.debug(
         "Doing async_setup_entry. config_entry [%s] hass.data[%s][%s] [%s]",
         config_entry.as_dict(),
@@ -32,13 +26,11 @@ async def async_setup_entry(
         config_entry.entry_id,
         hass.data[DOMAIN][config_entry.entry_id],
     )
-
     serial_number: str = config_entry.data[CONF_SERIAL_NUMBER]
     device_class: CoverDeviceClass = config_entry.data[CONF_DEVICE_CLASS]
     remootio_client: RemootioClient = hass.data[DOMAIN][config_entry.entry_id][
         REMOOTIO_CLIENT
     ]
-
     async_add_entities(
         [
             RemootioCover(
@@ -47,10 +39,8 @@ async def async_setup_entry(
         ]
     )
 
-
 class RemootioCover(CoverEntity):
     """Cover entity which represents an Remootio device controlled garage door or gate."""
-
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
@@ -111,10 +101,8 @@ class RemootioCover(CoverEntity):
         """Close the Remootio controlled garage door or gate."""
         await self._remootio_client.trigger_close()
 
-
 class RemootioCoverStateChangeListener(Listener[StateChange]):
     """Listener to be invoked when Remootio controlled garage door or gate changes its state."""
-
     def __init__(self, owner: RemootioCover) -> None:
         """Initialize an instance of this class."""
         super().__init__()
@@ -124,10 +112,8 @@ class RemootioCoverStateChangeListener(Listener[StateChange]):
         """Execute this listener. Tell Home Assistant that the Remootio controlled garage door or gate has changed its state."""
         self._owner.async_write_ha_state()
 
-
 class RemootioCoverEventListener(Listener[Event]):
     """Listener to be invoked on an event sent by the Remmotio device."""
-
     def __init__(self, owner: RemootioCover) -> None:
         """Initialize an instance of this class."""
         super().__init__()
