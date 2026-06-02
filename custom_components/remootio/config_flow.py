@@ -3,23 +3,18 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
-from aioremootio import (
-    ConnectionOptions,
-    RemootioClientAuthenticationError,
-    RemootioClientConnectionEstablishmentError,
-)
 import voluptuous as vol
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_HOST
-from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError
 from .const import (
     CONF_API_AUTH_KEY,
     CONF_API_SECRET_KEY,
     CONF_SERIAL_NUMBER,
     DOMAIN,
 )
-from .exceptions import UnsupportedRemootioApiVersionError, UnsupportedRemootioDeviceError
+from .exceptions import UnsupportedRemootioDeviceError, UnsupportedRemootioApiVersionError
 from .utils import get_serial_number
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,14 +46,37 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not re.match(API_KEY_PATTERN, api_auth_key):
                     errors[CONF_API_AUTH_KEY] = "secret__api_auth_key_invalid"
                     raise InvalidApiAuthKey
+
+                # aioremootio is imported here (not at module level) so the config
+                # flow module loads cleanly before HA has installed requirements.
+                from aioremootio import ConnectionOptions  # noqa: PLC0415
+                from aioremootio import RemootioClientAuthenticationError  # noqa: PLC0415
+                from aioremootio import RemootioClientConnectionEstablishmentError  # noqa: PLC0415
+
                 connection_options = ConnectionOptions(
                     user_input[CONF_HOST],
                     api_secret_key,
                     api_auth_key,
                 )
-                device_serial_number = await get_serial_number(
-                    self.hass, connection_options, _LOGGER
-                )
+                try:
+                    device_serial_number = await get_serial_number(
+                        self.hass, connection_options, _LOGGER
+                    )
+                except RemootioClientConnectionEstablishmentError:
+                    errors["base"] = "cannot_connect"
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=self._build_schema(user_input),
+                        errors=errors,
+                    )
+                except RemootioClientAuthenticationError:
+                    errors["base"] = "invalid_auth"
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=self._build_schema(user_input),
+                        errors=errors,
+                    )
+
                 data = {
                     CONF_HOST: user_input[CONF_HOST],
                     CONF_API_SECRET_KEY: api_secret_key,
@@ -69,38 +87,40 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(device_serial_number)
                 self._abort_if_unique_id_configured(data)
                 return self.async_create_entry(
-                    title=f"Remootio ({user_input[CONF_HOST]})",
+                    title=f"Remootio Device ({user_input[CONF_HOST]})",
                     data=data,
                 )
-            except RemootioClientConnectionEstablishmentError:
-                errors["base"] = "cannot_connect"
-            except RemootioClientAuthenticationError:
-                errors["base"] = "invalid_auth"
-            except ConfigEntryNotReady:
-                errors["base"] = "cannot_connect"
             except UnsupportedRemootioApiVersionError:
                 errors["base"] = "cannot_connect"
             except UnsupportedRemootioDeviceError:
                 return self.async_abort(reason="unsupported_device")
             except (InvalidHost, InvalidApiSecretKey, InvalidApiAuthKey):
                 pass
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected exception during config flow")
                 errors["base"] = "unknown"
+
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HOST): str,
-                    vol.Required(CONF_API_SECRET_KEY): str,
-                    vol.Required(CONF_API_AUTH_KEY): str,
-                    vol.Required(
-                        CONF_DEVICE_CLASS,
-                        default=CoverDeviceClass.GARAGE,
-                    ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GATE]),
-                }
-            ),
+            data_schema=self._build_schema(user_input),
             errors=errors,
+        )
+
+    def _build_schema(
+        self, user_input: dict[str, Any] | None = None
+    ) -> vol.Schema:
+        """Build the data schema, pre-filling with previous user input."""
+        ui = user_input or {}
+        return vol.Schema(
+            {
+                vol.Required(CONF_HOST, default=ui.get(CONF_HOST, "")): str,
+                vol.Required(CONF_API_SECRET_KEY, default=ui.get(CONF_API_SECRET_KEY, "")): str,
+                vol.Required(CONF_API_AUTH_KEY, default=ui.get(CONF_API_AUTH_KEY, "")): str,
+                vol.Required(
+                    CONF_DEVICE_CLASS,
+                    default=ui.get(CONF_DEVICE_CLASS, CoverDeviceClass.GARAGE),
+                ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GATE]),
+            }
         )
 
 
