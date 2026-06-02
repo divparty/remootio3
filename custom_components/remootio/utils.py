@@ -2,9 +2,7 @@
 from __future__ import annotations
 import asyncio
 import logging
-from typing import Optional
-from aioremootio import ConnectionOptions, LoggerConfiguration, RemootioClient
-from aioremootio.enums import State
+from typing import TYPE_CHECKING, Optional
 from aiohttp import ClientError, ClientTimeout
 from homeassistant import core
 from homeassistant.helpers import aiohttp_client
@@ -15,15 +13,18 @@ from .exceptions import (
     UnsupportedRemootioDeviceError,
 )
 
+if TYPE_CHECKING:
+    from aioremootio import ConnectionOptions, RemootioClient
+
 _LOGGER = logging.getLogger(__name__)
 
 
 def _check_api_version(remootio_client: RemootioClient) -> None:
-   """Check whether the device uses a supported API version."""
+    """Check whether the device uses a supported API version."""
     api_version: int = remootio_client.api_version
     _LOGGER.debug("Device API version: %s", api_version)
     if api_version < EXPECTED_MINIMUM_API_VERSION:
-        raise UnsupportedRemootioApiVersionError (
+        raise UnsupportedRemootioApiVersionError(
             f"API version {api_version} is not supported. Minimum required version is {EXPECTED_MINIMUM_API_VERSION}"
         )
 
@@ -32,6 +33,8 @@ def _check_sensor_installed(
     remootio_client: RemootioClient, raise_error: bool = True
 ) -> None:
     """Check whether the device has a sensor installed."""
+    from aioremootio.enums import State  # noqa: PLC0415
+
     if remootio_client.state == State.NO_SENSOR_INSTALLED:
         if raise_error:
             raise UnsupportedRemootioDeviceError(
@@ -49,6 +52,8 @@ async def get_serial_number(
     logger: logging.Logger,
 ) -> str:
     """Connect to a Remootio device and retrieve its serial number."""
+    from aioremootio import LoggerConfiguration, RemootioClient  # noqa: PLC0415
+
     remootio_client: Optional[RemootioClient] = None
     try:
         session = aiohttp_client.async_get_clientsession(hass)
@@ -81,6 +86,8 @@ async def create_client(
     expected_serial_number: Optional[str] = None,
 ) -> RemootioClient:
     """Create and return a connected Remootio client."""
+    from aioremootio import LoggerConfiguration, RemootioClient  # noqa: PLC0415
+
     try:
         session = aiohttp_client.async_get_clientsession(hass)
         async with asyncio.timeout(REMOOTIO_TIMEOUT):
