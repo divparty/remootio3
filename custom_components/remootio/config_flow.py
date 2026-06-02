@@ -6,12 +6,8 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components.cover import CoverDeviceClass
 from homeassistant.config_entries import ConfigFlow
-try:
-    from homeassistant.config_entries import ConfigFlowResult
-except ImportError:
-    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult  # type: ignore[assignment]
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_HOST
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from .const import (
     CONF_API_AUTH_KEY,
     CONF_API_SECRET_KEY,
@@ -20,6 +16,11 @@ from .const import (
 )
 from .exceptions import UnsupportedRemootioDeviceError, UnsupportedRemootioApiVersionError
 from .utils import get_serial_number
+
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult  # type: ignore[assignment]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,36 +52,17 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors[CONF_API_AUTH_KEY] = "secret__api_auth_key_invalid"
                     raise InvalidApiAuthKey
 
-                # aioremootio is imported here (not at module level) so the config
-                # flow module loads cleanly before HA has installed requirements.
+                # aioremootio imported here so this module loads before HA installs requirements
                 from aioremootio import ConnectionOptions  # noqa: PLC0415
-                from aioremootio import RemootioClientAuthenticationError  # noqa: PLC0415
-                from aioremootio import RemootioClientConnectionEstablishmentError  # noqa: PLC0415
 
                 connection_options = ConnectionOptions(
                     user_input[CONF_HOST],
                     api_secret_key,
                     api_auth_key,
                 )
-                try:
-                    device_serial_number = await get_serial_number(
-                        self.hass, connection_options, _LOGGER
-                    )
-                except RemootioClientConnectionEstablishmentError:
-                    errors["base"] = "cannot_connect"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._build_schema(user_input),
-                        errors=errors,
-                    )
-                except RemootioClientAuthenticationError:
-                    errors["base"] = "invalid_auth"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._build_schema(user_input),
-                        errors=errors,
-                    )
-
+                device_serial_number = await get_serial_number(
+                    self.hass, connection_options, _LOGGER
+                )
                 data = {
                     CONF_HOST: user_input[CONF_HOST],
                     CONF_API_SECRET_KEY: api_secret_key,
@@ -94,10 +76,10 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=f"Remootio Device ({user_input[CONF_HOST]})",
                     data=data,
                 )
-            except UnsupportedRemootioApiVersionError:
-                errors["base"] = "cannot_connect"
             except UnsupportedRemootioDeviceError:
                 return self.async_abort(reason="unsupported_device")
+            except (UnsupportedRemootioApiVersionError, ConfigEntryNotReady):
+                errors["base"] = "cannot_connect"
             except (InvalidHost, InvalidApiSecretKey, InvalidApiAuthKey):
                 pass
             except Exception:  # noqa: BLE001
@@ -123,7 +105,7 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_DEVICE_CLASS,
                     default=ui.get(CONF_DEVICE_CLASS, CoverDeviceClass.GARAGE),
-                ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GATE]),
+                ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GAT]),
             }
         )
 
