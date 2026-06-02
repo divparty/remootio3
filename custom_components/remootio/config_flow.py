@@ -105,7 +105,7 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_DEVICE_CLASS,
                     default=ui.get(CONF_DEVICE_CLASS, CoverDeviceClass.GARAGE),
-                ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GAT]),
+                ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GATE]),
             }
         )
 
