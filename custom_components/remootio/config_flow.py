@@ -10,19 +10,16 @@ from aioremootio import (
 )
 import voluptuous as vol
 from homeassistant.components.cover import CoverDeviceClass
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_HOST
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from .const import (
     CONF_API_AUTH_KEY,
     CONF_API_SECRET_KEY,
-    CONF_DATA,
     CONF_SERIAL_NUMBER,
-    CONF_TITLE,
     DOMAIN,
 )
-from .exceptions import UnsupportedRemootioDeviceError, UnsupportedRemootioApiVersionError
+from .exceptions import UnsupportedRemootioApiVersionError, UnsupportedRemootioDeviceError
 from .utils import get_serial_number
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,15 +27,17 @@ _LOGGER = logging.getLogger(__name__)
 HOST_PATTERN = r"^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*(\:\d{1,5})?$"
 API_KEY_PATTERN = r"^[A-F0-9]{64}$"
 
+
 class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Remootio."""
+
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
-        errors = {}
+        errors: dict[str, str] = {}
         if user_input is not None:
             try:
                 if not re.match(HOST_PATTERN, user_input[CONF_HOST]):
@@ -70,7 +69,7 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(device_serial_number)
                 self._abort_if_unique_id_configured(data)
                 return self.async_create_entry(
-                    title=f"Remootio Device ({user_input[CONF_HOST]})",
+                    title=f"Remootio ({user_input[CONF_HOST]})",
                     data=data,
                 )
             except RemootioClientConnectionEstablishmentError:
@@ -97,18 +96,21 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_API_AUTH_KEY): str,
                     vol.Required(
                         CONF_DEVICE_CLASS,
-                        default=CoverDeviceClass.GARAGE
+                        default=CoverDeviceClass.GARAGE,
                     ): vol.In([CoverDeviceClass.GARAGE, CoverDeviceClass.GATE]),
                 }
             ),
             errors=errors,
         )
 
+
 class InvalidHost(HomeAssistantError):
     """Error to indicate invalid host."""
 
+
 class InvalidApiSecretKey(HomeAssistantError):
     """Error to indicate invalid API secret key."""
+
 
 class InvalidApiAuthKey(HomeAssistantError):
     """Error to indicate invalid API auth key."""
