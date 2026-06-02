@@ -5,7 +5,11 @@ import re
 from typing import Any
 import voluptuous as vol
 from homeassistant.components.cover import CoverDeviceClass
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult  # type: ignore[assignment]
 from homeassistant.const import CONF_DEVICE_CLASS, CONF_HOST
 from homeassistant.exceptions import HomeAssistantError
 from .const import (
