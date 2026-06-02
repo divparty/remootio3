@@ -22,7 +22,7 @@ from .const import (
     CONF_TITLE,
     DOMAIN,
 )
-from .exceptions import UnsupportedRemootioDeviceError
+from .exceptions import UnsupportedRemootioDeviceError, UnsupportedRemootioApiVersionError
 from .utils import get_serial_number
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,6 +78,8 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
             except RemootioClientAuthenticationError:
                 errors["base"] = "invalid_auth"
             except ConfigEntryNotReady:
+                errors["base"] = "cannot_connect"
+            except UnsupportedRemootioApiVersionError:
                 errors["base"] = "cannot_connect"
             except UnsupportedRemootioDeviceError:
                 return self.async_abort(reason="unsupported_device")
